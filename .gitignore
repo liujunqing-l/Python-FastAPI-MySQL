@@ -1,0 +1,10 @@
+.superpowers/
+.codex-review/
+.venv/
+__pycache__/
+*.pyc
+.env
+spool/
+*.log
+node_modules/
+dist/
