@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 在阿里云 ECS 上交付一个可独立接收 TCP 解析模块 JSON、校验去重、保存 MySQL、归档原始报文到 OSS，并向前端提供查询接口的 Python FastAPI 数据库模块。
+**Goal:** 在阿里云 ECS 上交付一个可独立接收 TCP 解析模块 JSON、校验去重、保存 PostgreSQL、归档原始报文到 OSS，并向前端提供查询接口的 Python FastAPI 数据库模块。
 
-**Architecture:** TCP 同学只负责手表 TCP 登录、心跳和 `0x32` 报文解析，并向本机 FastAPI `POST /api/v1/health` 发送统一 JSON。FastAPI 负责校验、生成事件摘要、事务写入 MySQL，并把原始十六进制报文写入按日暂存文件；独立归档任务压缩文件后上传 OSS。前端只调用 FastAPI 的查询接口。
+**Architecture:** TCP 同学只负责手表 TCP 登录、心跳和 `0x32` 报文解析，并向本机 FastAPI `POST /api/v1/health` 发送统一 JSON。FastAPI 负责校验、生成事件摘要、事务写入 PostgreSQL，并把原始十六进制报文写入按日暂存文件；独立归档任务压缩文件后上传 OSS。前端只调用 FastAPI 的查询接口。
 
-**Tech Stack:** Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, MySQL 8, pytest, httpx, boto3/oss2, Nginx, systemd。
+**Tech Stack:** Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, PostgreSQL 16, psycopg, pytest, httpx, oss2, Nginx, systemd。
 
 ---
 
@@ -29,7 +29,7 @@
 - `tests/test_archive.py`：本地归档和OSS重试测试。
 - `.env.example`：配置样例，不包含真实密码或密钥。
 - `requirements.txt`：固定主要依赖版本范围。
-- `docker-compose.dev.yml`：本地MySQL测试环境。
+- `docker-compose.dev.yml`：本地PostgreSQL测试环境。
 - `README.md`：本地、阿里云部署和三方联调说明。
 
 ### Task 1: 建立 Python 项目和可测试的数据库连接
@@ -52,7 +52,7 @@ uvicorn[standard]==0.30.*
 pydantic-settings==2.6.*
 SQLAlchemy==2.0.*
 alembic==1.14.*
-PyMySQL==1.1.*
+psycopg[binary]==3.2.*
 cryptography==44.*
 httpx==0.28.*
 pytest==8.*
@@ -67,7 +67,7 @@ oss2==2.19.*
 
 ```dotenv
 APP_ENV=development
-DATABASE_URL=mysql+pymysql://health_app:change-me@127.0.0.1:3306/b2315p
+DATABASE_URL=postgresql+psycopg://health_app:change-me@127.0.0.1:5432/b2315p
 INTERNAL_TOKEN=replace-with-long-random-token
 RAW_SPOOL_DIR=./spool
 OSS_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
@@ -81,14 +81,14 @@ OSS_PREFIX=raw
 
 - [ ] **Step 3: 建立 SQLAlchemy 引擎和会话依赖**
 
-`app/db.py` 使用 `create_engine(settings.database_url, pool_pre_ping=True, pool_recycle=1800, pool_size=10, max_overflow=10)`，定义 `SessionLocal` 和生成器 `get_db()`。测试时允许通过 `TEST_DATABASE_URL` 覆盖连接串。
+`app/db.py` 使用 `create_engine(settings.database_url, pool_pre_ping=True, pool_recycle=1800, pool_size=10, max_overflow=10)`，定义 `SessionLocal` 和生成器 `get_db()`。测试时允许通过 `TEST_DATABASE_URL` 覆盖连接串；驱动使用 `psycopg`。
 
-- [ ] **Step 4: 本地启动 MySQL 并验证连接**
+- [ ] **Step 4: 本地启动 PostgreSQL 并验证连接**
 
 运行：
 
 ```powershell
-docker compose -f docker-compose.dev.yml up -d mysql
+docker compose -f docker-compose.dev.yml up -d postgres
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -119,11 +119,11 @@ git commit -m "chore: initialize FastAPI database service"
 
 - [ ] **Step 2: 创建 SQLAlchemy 模型**
 
-使用 `String(20)` 保存 IMEI，`DateTime(timezone=True)` 保存 UTC 时间，健康数值使用 `SmallInteger`、`Numeric(4,1)`，原始报文摘要使用 `String(64)`。`health_records` 包含 `collected_date`、`event_hash`、`raw_archive_id`，并建立联合索引。错误表只记录失败请求，归档表按日期和设备批次记录OSS对象。
+使用 `String(20)` 保存 IMEI，`DateTime(timezone=True)` 保存 UTC 时间，健康数值使用 `SmallInteger`、`Numeric(4,1)`，原始报文摘要使用 `String(64)`。`health_records` 包含 `collected_date`、`event_hash`、`raw_archive_id`，并建立联合索引。错误表只记录失败请求，归档表按日期和设备批次记录OSS对象。迁移使用 PostgreSQL RANGE 分区语句。
 
 - [ ] **Step 3: 生成迁移**
 
-配置 Alembic 从 `Base.metadata` 读取模型，编写 `001_initial.py` 创建表、索引和约束。第一版不要直接把 MySQL 分区语句混入ORM模型；在迁移末尾使用显式 `op.execute` 创建未来12个月分区，部署时由维护脚本继续创建。
+配置 Alembic 从 `Base.metadata` 读取模型，编写 `001_initial.py` 创建表、索引和约束。第一版不要把分区逻辑藏在 ORM 模型中；在迁移末尾使用显式 `op.execute` 创建 PostgreSQL 未来12个月 RANGE 分区，部署时由维护脚本继续创建。
 
 - [ ] **Step 4: 运行迁移和结构检查**
 
@@ -138,7 +138,7 @@ python -c "from sqlalchemy import inspect; from app.db import engine; print(insp
 
 ```powershell
 git add database-service/app/models.py database-service/alembic database-service/tests/test_models.py
-git commit -m "feat: add MySQL health data schema"
+git commit -m "feat: add PostgreSQL health data schema"
 ```
 
 ### Task 3: 定义 JSON 合同和 FastAPI 写入接口
@@ -177,7 +177,7 @@ class HealthIngestRequest(BaseModel):
 
 - [ ] **Step 3: 实现令牌校验和 HTTP 响应**
 
-从 `X-Internal-Token` 读取内部令牌。成功新建返回 `201`; 重复返回 `200`; Pydantic错误返回 `422`; MySQL `OperationalError` 回滚后返回 `503`，响应中包含 `retryable=true`。不要把数据库密码或原始完整报文写入错误响应。
+从 `X-Internal-Token` 读取内部令牌。成功新建返回 `201`; 重复返回 `200`; Pydantic错误返回 `422`; PostgreSQL `OperationalError` 回滚后返回 `503`，响应中包含 `retryable=true`。不要把数据库密码或原始完整报文写入错误响应。
 
 - [ ] **Step 4: 运行写入测试**
 
@@ -279,7 +279,7 @@ git commit -m "feat: archive raw TCP payloads to OSS"
 
 - [ ] **Step 2: 编写阿里云部署说明**
 
-明确：安装 Python、MySQL客户端和 Nginx；创建数据库和低权限账号；上传项目；配置 `.env`；执行迁移；运行 systemd；安全组仅开放 `22`（管理员IP）、`80/443`、TCP解析服务端口 `9000`；禁止公网开放 `3306` 和 `8000`。
+明确：安装 Python、PostgreSQL客户端和 Nginx；创建数据库和低权限角色；上传项目；配置 `.env`；执行迁移；运行 systemd；安全组仅开放 `22`（管理员IP）、`80/443`、TCP解析服务端口 `9000`；禁止公网开放 `5432` 和 `8000`。
 
 - [ ] **Step 3: 写 systemd 配置**
 
@@ -287,7 +287,7 @@ FastAPI服务自动重启、工作目录固定、环境文件指向 `/opt/b2315p
 
 - [ ] **Step 4: 写健康检查**
 
-`healthcheck.py` 检查 MySQL `SELECT 1`、暂存目录可写和 OSS 配置完整，失败返回非零退出码，供监控使用。
+`healthcheck.py` 检查 PostgreSQL `SELECT 1`、暂存目录可写和 OSS 配置完整，失败返回非零退出码，供监控使用。
 
 - [ ] **Step 5: 提交部署配置**
 
@@ -321,20 +321,20 @@ python scripts/load_test.py --devices 200 --burst 200
 
 - [ ] **Step 4: 运行故障验收**
 
-停止 MySQL 后发送请求，确认接口返回503且发送脚本保留待重试数据；恢复 MySQL 后重试并确认最终只保存一条。临时阻断 OSS，确认健康记录仍可查询、暂存文件未被删除，恢复后归档成功。
+停止 PostgreSQL 后发送请求，确认接口返回503且发送脚本保留待重试数据；恢复 PostgreSQL 后重试并确认最终只保存一条。临时阻断 OSS，确认健康记录仍可查询、暂存文件未被删除，恢复后归档成功。
 
 - [ ] **Step 5: 完成三方联调**
 
-先用一台真实手表连续运行24小时，再逐步增加到200台。记录接口延迟、MySQL CPU/内存/磁盘占用、暂存目录大小、OSS归档数量和重复率，形成测试记录。
+先用一台真实手表连续运行24小时，再逐步增加到200台。记录接口延迟、PostgreSQL CPU/内存/磁盘占用、暂存目录大小、OSS归档数量和重复率，形成测试记录。
 
 ## 交付验收标准
 
-- 合法 JSON 能写入 MySQL；
+- 合法 JSON 能写入 PostgreSQL；
 - 重复提交不会产生重复记录；
 - 错误数据有明确 401/422/503 响应；
 - 前端可以按设备和时间分页查询；
 - 原始报文按天压缩到 OSS，生命周期365天；
-- MySQL/OSS 短暂故障后可以恢复；
+- PostgreSQL/OSS 短暂故障后可以恢复；
 - 200台设备每分钟上报的模拟测试通过；
-- `3306` 和 `8000` 不对公网开放；
+- `5432` 和 `8000` 不对公网开放；
 - 有 README、迁移文件、联调合同和测试记录。

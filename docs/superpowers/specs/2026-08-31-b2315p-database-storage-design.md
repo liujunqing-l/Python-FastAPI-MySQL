@@ -2,7 +2,7 @@
 
 ## 1. 目标与范围
 
-本模块负责接收 TCP 解析模块生成的标准 JSON，完成数据校验、去重、MySQL 持久化、原始报文归档，并向前端提供查询接口。
+本模块负责接收 TCP 解析模块生成的标准 JSON，完成数据校验、去重、PostgreSQL 持久化、原始报文归档，并向前端提供查询接口。
 
 本模块不负责：
 
@@ -20,16 +20,16 @@
 - Pydantic；
 - SQLAlchemy 2；
 - Alembic 数据库迁移；
-- MySQL 8；
+- PostgreSQL 16；
 - 阿里云 OSS；
 - Nginx；
 - systemd 或 Docker Compose 管理进程。
 
-课程项目第一版不引入 RabbitMQ、Redis、Celery和微服务注册中心。200台设备的平均写入约为每秒3.33次，FastAPI和MySQL可以直接处理。
+课程项目第一版不引入 RabbitMQ、Redis、Celery和微服务注册中心。200台设备的平均写入约为每秒3.33次，FastAPI和PostgreSQL可以直接处理。
 
 ## 3. 系统边界与数据流
 
-推荐将 TCP 服务、FastAPI、MySQL 和 Nginx 部署在同一台阿里云 ECS：
+推荐将 TCP 服务、FastAPI、PostgreSQL 和 Nginx 部署在同一台阿里云 ECS：
 
 ```text
 B2315P手表
@@ -37,7 +37,7 @@ B2315P手表
 TCP解析模块
     ↓ HTTP JSON（127.0.0.1:8000）
 FastAPI数据库模块
-    ├─→ MySQL结构化健康数据
+    ├─→ PostgreSQL结构化健康数据
     ├─→ 本地原始报文暂存文件
     └─→ OSS压缩归档
 
@@ -47,7 +47,7 @@ Nginx
     ↓
 FastAPI查询接口
     ↓
-MySQL
+PostgreSQL
 ```
 
 TCP解析模块与FastAPI在同一台服务器时，写入接口仅监听本机地址，不对公网开放。
@@ -112,11 +112,11 @@ FastAPI接收数据后进行以下校验：
 IMEI + 采集时间 + 报文类型 + 原始报文摘要
 ```
 
-`health_records`建立 `(event_hash, collected_date)` 唯一索引。同一报文因设备重发、网络重试或接口重试再次到达时，不重复写入。
+`health_records`建立 `(event_hash, collected_date)` 唯一索引。同一报文因设备重发、网络重试或接口重试再次到达时，不重复写入。PostgreSQL入库使用 `INSERT ... ON CONFLICT DO NOTHING`，避免先查询再插入造成竞态。
 
 重复数据返回HTTP 200，并在响应中注明 `duplicate=true`，让TCP模块停止重试。
 
-## 7. MySQL数据模型
+## 7. PostgreSQL数据模型
 
 ### 7.1 devices
 
@@ -191,7 +191,7 @@ IMEI + 采集时间 + 报文类型 + 原始报文摘要
 
 ## 8. 原始TCP报文归档
 
-原始报文不逐条存入MySQL。FastAPI收到数据后，将以下内容追加到本地按日期和IMEI划分的JSONL文件：
+原始报文不逐条存入PostgreSQL。FastAPI收到数据后，将以下内容追加到本地按日期和IMEI划分的JSONL文件：
 
 ```text
 spool/2026/08/31/868488079852388.jsonl
@@ -211,7 +211,7 @@ OSS对象路径：
 raw/2026/08/31/868488079852388.jsonl.gz
 ```
 
-OSS生命周期设置为365天自动删除。MySQL数据库备份使用单独路径和单独生命周期，不能与原始报文混用。
+OSS生命周期设置为365天自动删除。PostgreSQL数据库使用 `pg_dump` 备份到单独路径和单独生命周期，不能与原始报文混用。
 
 ## 9. FastAPI接口
 
@@ -225,7 +225,7 @@ OSS生命周期设置为365天自动删除。MySQL数据库备份使用单独路
 - `200 OK`：重复数据，已忽略；
 - `401 Unauthorized`：内部令牌不正确；
 - `422 Unprocessable Entity`：字段格式或范围错误；
-- `503 Service Unavailable`：MySQL暂时不可用，TCP模块必须保留数据并重试。
+- `503 Service Unavailable`：PostgreSQL暂时不可用，TCP模块必须保留数据并重试。
 
 ### 9.2 前端查询接口
 
@@ -234,7 +234,7 @@ OSS生命周期设置为365天自动删除。MySQL数据库备份使用单独路
 - `GET /api/v1/health/history?imei=...&start=...&end=...&page=...&page_size=...`：历史数据；
 - `GET /api/v1/health/summary?imei=...&date=...`：按天统计，可在第一版完成后增加。
 
-历史查询必须分页，单次时间范围默认不超过31天，`page_size`最大1000，防止前端一次读取全年数据拖慢MySQL。
+历史查询必须分页，单次时间范围默认不超过31天，`page_size`最大1000，防止前端一次读取全年数据拖慢PostgreSQL。
 
 ## 10. 一致性与故障处理
 
@@ -243,20 +243,20 @@ OSS生命周期设置为365天自动删除。MySQL数据库备份使用单独路
 1. 验证内部令牌和JSON字段；
 2. 计算 `event_hash`；
 3. 将原始报文追加到本地暂存文件；
-4. 使用MySQL事务写入 `health_records` 并更新 `devices.last_seen_at`；
+4. 使用PostgreSQL事务写入 `health_records` 并更新 `devices.last_seen_at`；
 5. 返回保存结果；
 6. 独立定时任务压缩并上传OSS。
 
 故障规则：
 
 - 重复数据视为成功；
-- MySQL失败时返回503，TCP模块负责持久化待重试数据；
+- PostgreSQL失败时返回503，TCP模块负责持久化待重试数据；
 - OSS失败不影响结构化健康数据入库，本地暂存文件不得删除；
 - OSS任务根据 `raw_archives.status` 定时重试；
 - 进程重启后扫描未上传文件和pending记录继续处理；
 - 磁盘剩余空间低于20%时必须报警并暂停删除操作。
 
-TCP解析模块必须实现发送失败的本地队列，否则仅靠FastAPI无法保证MySQL故障期间不丢数据。这是两个模块之间的必要责任边界。
+TCP解析模块必须实现发送失败的本地队列，否则仅靠FastAPI无法保证PostgreSQL故障期间不丢数据。这是两个模块之间的必要责任边界。
 
 ## 11. 阿里云部署和安全
 
@@ -264,22 +264,22 @@ TCP解析模块必须实现发送失败的本地队列，否则仅靠FastAPI无�
 
 - 4核8GB ECS；
 - 40GB系统盘；
-- 300GB ESSD数据盘起步，MySQL和暂存目录放数据盘；
+- 300GB ESSD数据盘起步，PostgreSQL和暂存目录放数据盘；
 - 5Mbps及以上公网带宽；
 - OSS按实际使用量计费；
 - 每天数据库备份，保留7份日备份和4份周备份。
 
-一年1.05亿条结构化记录的实际空间受字段、索引和InnoDB配置影响，部署后必须监控增长速度，在磁盘达到70%前扩容。若只配置100GB数据盘，应缩短MySQL在线保留期或提前扩容。
+一年1.05亿条结构化记录的实际空间受字段、索引和PostgreSQL表膨胀影响，部署后必须监控增长速度，在磁盘达到70%前扩容。若只配置100GB数据盘，应缩短在线保留期或提前扩容。
 
 安全组：
 
 - `22/TCP`：仅允许管理员固定IP；
 - `80/443`：提供网页和HTTPS API；
 - `9000/TCP`：手环TCP服务；
-- `3306`：禁止公网开放；
+- `5432`：禁止公网开放；
 - `8000`：禁止公网直接开放。
 
-MySQL使用独立低权限账号；OSS密钥通过环境变量或实例RAM角色提供，不写入源代码；生产环境使用HTTPS和强随机内部令牌。
+PostgreSQL使用独立低权限角色；OSS密钥通过环境变量或实例RAM角色提供，不写入源代码；生产环境使用HTTPS和强随机内部令牌。
 
 ## 12. 测试与验收
 
@@ -293,7 +293,7 @@ MySQL使用独立低权限账号；OSS密钥通过环境变量或实例RAM角色
 - 部分健康字段为null；
 - IMEI、时间和数值范围错误；
 - 同一数据连续提交两次；
-- MySQL停止和恢复；
+- PostgreSQL停止和恢复；
 - OSS断开和恢复；
 - FastAPI进程重启后继续归档；
 - 按IMEI和时间范围分页查询。
@@ -305,13 +305,13 @@ MySQL使用独立低权限账号；OSS密钥通过环境变量或实例RAM角色
 - 无数据重复；
 - 无连接池耗尽；
 - 接口响应时间稳定；
-- MySQL CPU、内存和磁盘延迟正常；
+- PostgreSQL CPU、内存和磁盘延迟正常；
 - 前端查询不会阻塞写入；
 - 暂存文件和OSS数量符合预期。
 
 ### 12.3 三方联调顺序
 
-1. 你先用模拟JSON完成FastAPI、MySQL和查询接口；
+1. 你先用模拟JSON完成FastAPI、PostgreSQL和查询接口；
 2. 前端同学使用你的查询接口开发页面；
 3. TCP同学根据固定JSON格式调用写入接口；
 4. 使用一台手表联调；
@@ -322,12 +322,12 @@ MySQL使用独立低权限账号；OSS密钥通过环境变量或实例RAM角色
 
 数据库模块满足以下条件即视为完成：
 
-- 合法健康数据能够写入MySQL；
+- 合法健康数据能够写入PostgreSQL；
 - 重复提交不产生重复记录；
 - 无效数据有明确错误响应；
 - 原始报文能够按天压缩上传OSS并保留一年；
 - 前端可以查询最新和历史健康数据；
-- MySQL和OSS短暂故障后能够恢复；
+- PostgreSQL和OSS短暂故障后能够恢复；
 - 数据库端口不暴露公网；
 - 200台每分钟上报的模拟压力测试通过；
 - 有部署说明、接口说明、建表迁移和测试记录。
