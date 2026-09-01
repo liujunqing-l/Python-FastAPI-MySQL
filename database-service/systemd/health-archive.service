@@ -1,0 +1,11 @@
+[Unit]
+Description=Archive B2315P raw spool files to OSS
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=b2315p
+Group=b2315p
+WorkingDirectory=/opt/b2315p/database-service
+EnvironmentFile=/opt/b2315p/database-service/.env
+ExecStart=/opt/b2315p/database-service/.venv/bin/python scripts/archive_spool.py

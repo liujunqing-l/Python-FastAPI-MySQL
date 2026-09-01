@@ -1,0 +1,21 @@
+[Unit]
+Description=B2315P FastAPI health database service
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=b2315p
+Group=b2315p
+WorkingDirectory=/opt/b2315p/database-service
+EnvironmentFile=/opt/b2315p/database-service/.env
+ExecStart=/opt/b2315p/database-service/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
+Restart=always
+RestartSec=5
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/b2315p/spool
+
+[Install]
+WantedBy=multi-user.target
