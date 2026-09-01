@@ -45,6 +45,7 @@ class Device(Base):
 
 class RawArchive(Base):
     __tablename__ = "raw_archives"
+    __table_args__ = (UniqueConstraint("archive_date", "imei", name="uq_raw_archives_date_imei"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     archive_date: Mapped[date] = mapped_column(Date, nullable=False)

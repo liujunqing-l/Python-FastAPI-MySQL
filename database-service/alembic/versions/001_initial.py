@@ -36,7 +36,8 @@ def upgrade() -> None:
             status VARCHAR(20) NOT NULL DEFAULT 'pending',
             retry_count INTEGER NOT NULL DEFAULT 0,
             created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-            uploaded_at TIMESTAMPTZ
+            uploaded_at TIMESTAMPTZ,
+            CONSTRAINT uq_raw_archives_date_imei UNIQUE (archive_date, imei)
         );
 
         CREATE TABLE health_records (

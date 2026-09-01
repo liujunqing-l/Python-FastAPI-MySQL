@@ -1,0 +1,10 @@
+[Unit]
+Description=Run B2315P OSS archive every day
+
+[Timer]
+OnCalendar=*-*-* 00:30:00
+Persistent=true
+Unit=health-archive.service
+
+[Install]
+WantedBy=timers.target
