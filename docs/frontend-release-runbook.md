@@ -56,8 +56,12 @@ sudo find /var/www/b2315p/frontend/dist -type f -exec chmod 644 {} +
 
 sudo nginx -t
 sudo systemctl reload nginx
-curl -fsS http://127.0.0.1/healthz
+curl -fsS -H 'Host: 8.152.103.37' http://127.0.0.1/healthz
 ```
+
+If Ubuntu's default Nginx site is still enabled, a request to `127.0.0.1`
+without the `Host` header can select that default site and return `404` for
+`/healthz`. The explicit header verifies the B2315P virtual host instead.
 
 ## 4. 浏览器验收
 
