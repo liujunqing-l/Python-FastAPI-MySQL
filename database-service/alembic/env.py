@@ -21,6 +21,22 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def include_object(object_, name, type_, reflected, compare_to):
+    """Ignore PostgreSQL's auto-created indexes/table for the DEFAULT partition.
+
+    ``health_records_default`` is created explicitly by migration 001 and is
+    not represented as a separate ORM table.  Autogenerate should therefore
+    compare the partitioned parent only, rather than proposing destructive
+    removal of the managed child partition.
+    """
+
+    if reflected and type_ == "table" and name == "health_records_default":
+        return False
+    if reflected and type_ == "index" and name == "health_records_default_imei_collected_at_idx":
+        return False
+    return True
+
+
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
     context.configure(url=url, target_metadata=target_metadata, literal_binds=True)
@@ -35,7 +51,11 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
+        )
         with context.begin_transaction():
             context.run_migrations()
 

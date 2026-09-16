@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import RawArchive
@@ -37,11 +37,6 @@ def _parse_spool_path(source: Path) -> tuple[str, str]:
     if not imei.isdigit() or not 14 <= len(imei) <= 20:
         raise ValueError("source path contains invalid IMEI")
     return archive_date, imei
-
-
-def _next_archive_id(db: Session) -> int:
-    current = db.scalar(select(func.max(RawArchive.id)))
-    return int(current or 0) + 1
 
 
 def archive_spool_file(
@@ -77,7 +72,6 @@ def archive_spool_file(
     )
     if row is None:
         row = RawArchive(
-            id=_next_archive_id(db),
             archive_date=archive_date,
             imei=imei,
             oss_key=oss_key,

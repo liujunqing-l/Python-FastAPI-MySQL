@@ -33,12 +33,14 @@ def make_db():
     return engine
 
 
-def test_archive_compresses_uploads_and_removes_spool(tmp_path):
+def test_archive_compresses_uploads_and_removes_spool(tmp_path, monkeypatch):
     source = tmp_path / "2026" / "08" / "31" / "868488079852388.jsonl"
     source.parent.mkdir(parents=True)
     source.write_text('{"event_hash":"abc","raw_hex":"AA"}\n{"raw_hex":"BB"}\n', encoding="utf-8")
     bucket = FakeBucket()
     engine = make_db()
+
+    monkeypatch.setattr("app.services.archive._next_archive_id", lambda db: (_ for _ in ()).throw(AssertionError("manual IDs are forbidden")), raising=False)
 
     with Session(engine) as db:
         result = archive_spool_file(source, bucket, db, "raw")

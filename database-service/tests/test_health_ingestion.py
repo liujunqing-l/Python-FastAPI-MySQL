@@ -48,18 +48,23 @@ def test_invalid_imei_and_measurement_are_rejected():
         raise AssertionError("invalid health payload was accepted")
 
 
-def test_duplicate_health_payload_is_ignored(tmp_path):
+def test_duplicate_health_payload_is_ignored(tmp_path, monkeypatch):
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine)
     payload = HealthIngestRequest.model_validate(make_payload())
 
+    # Ingestion must rely on database-generated IDs.  The old MAX(id)+1
+    # helpers are deliberately made unusable so this test catches regressions.
+    monkeypatch.setattr("app.services.ingestion._next_record_id", lambda db: (_ for _ in ()).throw(AssertionError("manual IDs are forbidden")), raising=False)
+    monkeypatch.setattr("app.services.ingestion._next_device_id", lambda db: (_ for _ in ()).throw(AssertionError("manual IDs are forbidden")), raising=False)
     with session_factory() as db:
         first = ingest_health_record(db, payload, tmp_path)
         second = ingest_health_record(db, payload, tmp_path)
         assert first.duplicate is False
         assert second.duplicate is True
         assert db.query(HealthRecord).count() == 1
+        assert first.record_id is not None
 
 
 def test_http_ingest_requires_token_and_returns_created(tmp_path, monkeypatch):
@@ -90,5 +95,32 @@ def test_http_ingest_requires_token_and_returns_created(tmp_path, monkeypatch):
 
         unauthorized = client.post("/api/v1/health", json=make_payload())
         assert unauthorized.status_code == 401
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_health_endpoint_rejects_when_configured_token_is_empty(tmp_path, monkeypatch):
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine)
+
+    def override_get_db():
+        with session_factory() as db:
+            yield db
+
+    monkeypatch.setattr("app.api.health.settings.internal_token", "")
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        client = TestClient(app)
+        response = client.post("/api/v1/health", json=make_payload())
+        assert response.status_code == 401
+        response_with_empty_header = client.post(
+            "/api/v1/health", headers={"X-Internal-Token": ""}, json=make_payload()
+        )
+        assert response_with_empty_header.status_code == 401
     finally:
         app.dependency_overrides.clear()

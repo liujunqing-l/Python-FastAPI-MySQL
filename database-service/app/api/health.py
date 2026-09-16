@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..db import get_db
-from ..models import HealthRecord
+from ..models import HealthRecord, User
 from ..schemas import HealthIngestRequest, HealthRecordResponse, PaginatedHealthResponse
+from ..services.auth import get_current_user
+from ..services.authorization import assert_imei_access
 from ..services.ingestion import ingest_health_record
 
 
@@ -23,7 +25,11 @@ def ingest_health(
     db: Session = Depends(get_db),
     internal_token: str = Header(default="", alias="X-Internal-Token"),
 ):
-    if not hmac.compare_digest(internal_token, settings.internal_token):
+    if (
+        not settings.internal_token
+        or not internal_token
+        or not hmac.compare_digest(internal_token, settings.internal_token)
+    ):
         raise HTTPException(status_code=401, detail="invalid internal token")
     try:
         result = ingest_health_record(db, payload, settings.raw_spool_dir)
@@ -50,7 +56,9 @@ def ingest_health(
 def latest_health(
     imei: str = Query(..., min_length=14, max_length=20, pattern=r"^\d{14,20}$"),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> HealthRecordResponse:
+    assert_imei_access(user=user, db=db, imei=imei)
     record = db.scalar(
         select(HealthRecord)
         .where(HealthRecord.imei == imei)
@@ -70,6 +78,7 @@ def health_history(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=1000),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> PaginatedHealthResponse:
     if start.tzinfo is None or start.utcoffset() is None:
         raise HTTPException(status_code=422, detail="start must include a timezone")
@@ -77,6 +86,7 @@ def health_history(
         raise HTTPException(status_code=422, detail="end must include a timezone")
     if end <= start:
         raise HTTPException(status_code=422, detail="end must be later than start")
+    assert_imei_access(user=user, db=db, imei=imei)
 
     base = select(HealthRecord).where(
         HealthRecord.imei == imei,

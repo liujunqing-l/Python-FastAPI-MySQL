@@ -6,7 +6,12 @@
 B2315P 手环 -> TCP 解析模块 -> POST /api/v1/health -> PostgreSQL
                                              └-> spool/YYYY/MM/DD/*.jsonl -> OSS
 前端       -> GET /api/v1/devices、/health/latest、/health/history
+TCP F9    -> POST /api/v1/ingest/events -> heartbeat_records
 ```
+
+浏览器首次访问需要登录：`POST /api/v1/auth/login` 返回 JWT，之后查询和命令创建请求携带
+`Authorization: Bearer <JWT>`。JWT 只用于浏览器用户；TCP 解析程序和 worker 继续使用
+`.env` 中的 `INTERNAL_TOKEN`，两者必须是不同的随机字符串。
 
 ## 1. 本地运行
 
@@ -34,6 +39,31 @@ docker compose -f docker-compose.dev.yml up -d postgres
 - `GET /api/v1/devices?page=1&page_size=100`
 - `GET /api/v1/health/latest?imei=868488079852388`
 - `GET /api/v1/health/history?imei=868488079852388&start=2026-08-31T00:00:00Z&end=2026-09-01T00:00:00Z&page=1&page_size=100`
+- `GET /api/v1/heartbeat/latest?imei=868488079852388`
+- `GET /api/v1/alarms?imei=<IMEI>&status=pending&page=1&page_size=100`
+- `PATCH /api/v1/alarms/{id}/acknowledge`
+- `GET /api/v1/locations/latest?imei=<IMEI>`
+- `GET /api/v1/locations/history?imei=<IMEI>&start=<UTC ISO>&end=<UTC ISO>&page=1&page_size=100`
+- `GET /api/v1/sleep/history?imei=<IMEI>&start=<UTC ISO>&end=<UTC ISO>&page=1&page_size=100`
+- `GET /api/v1/device-config/<IMEI>`
+- `GET /api/v1/commands?imei=<IMEI>&status=pending&page=1&page_size=100`
+
+认证接口：
+
+- `POST /api/v1/auth/login`（`application/x-www-form-urlencoded`，字段 `username`、`password`）
+- `GET /api/v1/auth/me`（Bearer JWT）
+
+`admin` 可以查看全部设备；`operator` 和 `viewer` 只能查看已经绑定的设备。`operator`
+可以确认报警和创建设备命令，`viewer` 只读。未登录、令牌过期返回 `401`，角色不足返回
+`403`。初始化管理员运行 `scripts/create_admin.py --username admin`，按提示输入不回显的密码，
+不要把密码写入命令行或仓库。
+
+浏览器通过 `POST /api/v1/commands` 把定位/健康周期、定位优先级和报警开关加入命令队列；
+TCP worker 只在手环短连接登录后领取并发送，收到 `0xC0` 回执后命令才会显示为已执行。
+
+F9 心跳写入接口为 `POST /api/v1/ingest/events`，字段合同和示例见
+[`docs/integration-contract.md`](docs/integration-contract.md)。旧的健康写入接口
+`POST /api/v1/health` 保持兼容。
 
 历史接口按采集时间倒序返回，单次最多 1000 条；时间必须带时区且 `end` 晚于 `start`。
 
@@ -68,7 +98,7 @@ sudo systemctl enable --now health-archive.timer
 sudo systemctl status health-api.service health-archive.timer
 ```
 
-Nginx 只代理 80/443 到 `127.0.0.1:8000`；TCP 解析服务使用独立的 9000 端口。安全组不要向公网开放 PostgreSQL 5432 或 FastAPI 8000。
+Nginx 只代理 80/443 到 `127.0.0.1:8000`；TCP 解析服务使用独立的 8825 端口（当前手环已配置并验证）。安全组不要向公网开放 PostgreSQL 5432 或 FastAPI 8000。
 
 ## 5. 三方联调顺序
 
