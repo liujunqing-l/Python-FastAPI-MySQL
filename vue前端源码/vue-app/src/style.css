@@ -16,3 +16,8 @@
 
 /* Shared controls used by the real health list/detail views. */
 .page-heading{display:flex;align-items:center;gap:12px;margin:16px 0}.page-heading h2{margin:0}.state{color:#91a6c2;font-size:12px}.filters{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:14px;background:#17233a;border:1px solid #293d5b;border-radius:8px}.filters label{display:flex;flex-direction:column;align-items:stretch;gap:6px;color:#a9b8cb;font-size:13px}.filters input,.filters select,.filters button{height:34px;min-width:120px;border:1px solid #3d5879;border-radius:4px;background:#101d31;color:#e9f1ff;padding:0 10px}.filters .actions{display:flex;align-items:center;gap:8px}.filters button{cursor:pointer}.filters button:disabled{opacity:.55;cursor:not-allowed}.error{margin:12px 0;padding:10px 14px;color:#ff9eae;background:#3b1c2a;border:1px solid #8a3c53;border-radius:6px}.link-button{border:0;background:none;color:#38b6ff;cursor:pointer;padding:5px}.link-button:disabled{opacity:.5;cursor:not-allowed}.empty{text-align:center;color:#91a6c2;padding:24px}.health-view .filters label:first-child{min-width:190px}.health-detail-view .filters label{min-width:150px}.health-detail-view .filters input{min-width:145px}@media(max-width:760px){.filters{align-items:stretch}.filters label{flex:1 1 180px}.filters .actions{flex:1 1 100%}.filters .actions button{flex:1}.page-heading{flex-wrap:wrap}}
+
+/* Approved product title replaces the legacy logo and data-source subtitle. */
+.brand-title{color:#f2f7fc;font-size:23px;font-weight:700;letter-spacing:.5px;line-height:1.25}
+.brand-title::after{content:'';display:block;width:52px;height:3px;margin-top:8px;border-radius:2px;background:#09c7e8}
+@media(max-width:850px){.brand-title{font-size:18px}.clock{font-size:11px}}

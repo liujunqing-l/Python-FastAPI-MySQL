@@ -10,7 +10,6 @@ import HealthView from './views/HealthView.vue'
 import HealthDetailView from './views/HealthDetailView.vue'
 import AlarmView from './views/AlarmView.vue'
 import LocationView from './views/LocationView.vue'
-import SleepView from './views/SleepView.vue'
 import DeviceSettingsView from './views/DeviceSettingsView.vue'
 import RolesView from './views/RolesView.vue'
 import DeviceInfoView from './views/DeviceInfoView.vue'
@@ -34,8 +33,6 @@ const pinnedGroup = ref('')
 const navElement = ref(null)
 const currentUser = ref(auth.user)
 let refreshTimer = null
-
-const dataSource = import.meta.env.VITE_DATA_SOURCE || '开发数据库 / b2315p_dev'
 
 const canOperate = computed(() => hasRole(currentUser.value, 'operator'))
 const isAdmin = computed(() => hasRole(currentUser.value, 'admin'))
@@ -61,8 +58,7 @@ const navGroups = computed(() => [
       ...(isAdmin.value ? [{ label: '报警设置', key: 'alarm-settings' }] : []),
     ],
   },
-  { label: '定位记录', icon: '⌖', key: 'locations' },
-  { label: '睡眠记录', icon: '◒', key: 'sleep' },
+  { label: '定位数据', icon: '⌖', key: 'locations' },
   { label: '健康数据', icon: '▦', key: 'health' },
 ])
 
@@ -74,8 +70,7 @@ const currentTitle = computed(() => ({
   'device-info': '设备信息',
   alarms: '报警列表',
   'alarm-settings': '报警设置',
-  locations: '定位记录',
-  sleep: '睡眠记录',
+  locations: '定位数据',
   roles: '角色设置',
   'batch-modify': '批量修改',
 }[pageName.value] || '实时监控'))
@@ -94,6 +89,12 @@ function closeGroups() {
 }
 
 function enforcePageAccess() {
+  if (pageName.value === 'sleep') {
+    notice.value = '睡眠功能已从当前前端移除。'
+    pageName.value = 'monitor'
+    location.hash = 'monitor'
+    return
+  }
   if (canAccessPage(currentUser.value, pageName.value)) return
   notice.value = '当前角色无权访问该页面。'
   pageName.value = 'monitor'
@@ -316,17 +317,11 @@ onBeforeUnmount(() => {
 <template>
   <div class="app-shell">
     <header class="topbar">
-      <div class="brand">
-        <span class="logo">🏃</span>
-        <div>
-          <h1>运动员生命体征 <strong>实时监控平台</strong></h1>
-          <small><i /> 实时数据接收中 · 每10秒自动刷新</small>
-        </div>
-      </div>
+      <div class="brand"><div class="brand-title">救援人员体能训练体征监测平台</div></div>
       <div class="session-area">
         <span v-if="currentUser" class="session-user">{{ currentUser.display_name || currentUser.username }} · {{ roleLabel(currentUser.role) }}</span>
         <button class="logout-button" type="button" title="退出登录" @click="logout"><LogOut :size="15" />退出登录</button>
-        <div class="clock">{{ new Date().toLocaleString('zh-CN', { hour12: false }) }}　|　数据源：{{ dataSource }}</div>
+        <div class="clock">{{ new Date().toLocaleString('zh-CN', { hour12: false }) }}</div>
       </div>
     </header>
 
@@ -426,8 +421,6 @@ onBeforeUnmount(() => {
       <AlarmView v-else-if="pageName === 'alarms'" :devices="devices" :can-acknowledge="canOperate" />
 
       <LocationView v-else-if="pageName === 'locations'" :devices="devices" />
-
-      <SleepView v-else-if="pageName === 'sleep'" :devices="devices" />
 
       <AlarmSettingsView v-else-if="pageName === 'alarm-settings'" />
 
