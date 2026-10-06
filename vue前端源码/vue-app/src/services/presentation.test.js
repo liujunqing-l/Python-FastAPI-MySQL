@@ -1,7 +1,26 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { displayValue, isOnline, personLabel, trendPoints, isMissingHealthError } from './presentation.js'
+import { alarmTypeLabel, displayValue, healthMetricValue, isOnline, personLabel, trendPoints, isMissingHealthError } from './presentation.js'
+
+test('translates known alarm types while preserving unknown protocol values', () => {
+  assert.equal(alarmTypeLabel('heart_rate'), '心率')
+  assert.equal(alarmTypeLabel('blood_oxygen'), '血氧')
+  assert.equal(alarmTypeLabel('body_temperature'), '体温')
+  assert.equal(alarmTypeLabel('wrist_temperature'), '腕温')
+  assert.equal(alarmTypeLabel('fall'), '跌倒')
+  assert.equal(alarmTypeLabel('wearing'), '佩戴状态')
+  assert.equal(alarmTypeLabel('sos'), 'SOS报警')
+  assert.equal(alarmTypeLabel('low_battery'), '低电量')
+  assert.equal(alarmTypeLabel('future_alarm_type'), 'future_alarm_type')
+  assert.equal(alarmTypeLabel(null), '--')
+})
+
+test('healthMetricValue reads the first populated alias from a real row', () => {
+  assert.equal(healthMetricValue({ step_count: 11 }, 'steps', ['steps', 'step_count']), 11)
+  assert.equal(healthMetricValue({ spo2: 98 }, 'blood_oxygen', ['blood_oxygen', 'spo2']), 98)
+  assert.equal(healthMetricValue({}, 'heart_rate', ['heart_rate']), null)
+})
 
 test('displayValue renders missing values as a visible placeholder', () => {
   assert.equal(displayValue(null), '--')

@@ -2,6 +2,35 @@ export function displayValue(value) {
   return value === null || value === undefined || value === '' ? '--' : value
 }
 
+const ALARM_TYPE_LABELS = Object.freeze({
+  heart_rate: '心率',
+  blood_oxygen: '血氧',
+  body_temperature: '体温',
+  wrist_temperature: '腕温',
+  fall: '跌倒',
+  wearing: '佩戴状态',
+  sos: 'SOS报警',
+  low_battery: '低电量',
+  location: '定位异常',
+  geofence: '电子围栏',
+  inactivity: '久坐/不活动',
+  charging: '充电状态',
+  device_offline: '设备离线',
+})
+
+export function alarmTypeLabel(value) {
+  const normalized = value === null || value === undefined ? '' : String(value).trim()
+  if (!normalized) return '--'
+  return ALARM_TYPE_LABELS[normalized] || normalized
+}
+
+export function healthMetricValue(row, metric, aliases = []) {
+  const names = aliases.length ? aliases : [metric]
+  return names
+    .map((name) => row?.[name])
+    .find((value) => value !== undefined && value !== null && value !== '') ?? null
+}
+
 export function personLabel(value) {
   return displayValue(value)
 }

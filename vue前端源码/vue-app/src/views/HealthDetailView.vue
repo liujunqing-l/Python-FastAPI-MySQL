@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Download, Search, HeartPulse, Thermometer, Footprints, Flame, Droplets } from 'lucide-vue-next'
+import { ArrowLeft, Download, Search, HeartPulse, Thermometer, Footprints, Droplets } from 'lucide-vue-next'
 import { api, items, formatDate, today, dayRange, isDemo } from '../services/healthApi.js'
 import { personLabel } from '../services/presentation.js'
 import { exportWorkbook } from '../utils/export.js'
@@ -27,7 +27,6 @@ const metrics = [
   { key: 'heart_rate', title: '心率', unit: '次/分', color: '#ff6b9d', aliases: ['heart_rate'], icon: HeartPulse },
   { key: 'blood_oxygen', title: '血氧', unit: '%', color: '#ffd166', aliases: ['blood_oxygen', 'spo2'], icon: Droplets },
   { key: 'steps', title: '步数', unit: '步', color: '#8b9cff', aliases: ['steps', 'step_count'], icon: Footprints },
-  { key: 'calories', title: '卡路里', unit: 'kcal', color: '#ff9f43', aliases: ['calories'], icon: Flame },
 ]
 const displayName = computed(() => personLabel(field(device.value, ['person_name', 'name', 'device_name']) || field(rows.value.at(-1), ['person_name', 'name'])))
 const latestTime = computed(() => rows.value.length ? formatDate(measuredAt(rows.value.at(-1))) : '--')
@@ -160,7 +159,7 @@ onBeforeUnmount(() => { loadVersion += 1 })
 .device-meta { display: flex; flex-wrap: wrap; gap: 10px 24px; color: #91a6c2; font-size: 13px; margin: 0 0 18px; }
 .health-detail-view .filters label { display: flex; align-items: center; gap: 8px; color: #a9b8cb; font-size: 13px; }
 .health-detail-view .filters .state { margin-left: auto; }
-.latest-metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; padding: 20px 0; }
+.latest-metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; padding: 20px 0; }
 .latest-metrics > div { min-width: 0; padding: 0 18px; border-right: 1px solid #2b4362; }
 .latest-metrics > div:first-child { padding-left: 0; }
 .latest-metrics > div:last-child { border-right: 0; }
@@ -168,6 +167,6 @@ onBeforeUnmount(() => { loadVersion += 1 })
 .latest-metrics strong { display: block; margin-top: 10px; font-size: 24px; font-weight: 600; color: #e9f1ff; }
 .latest-metrics small { margin-left: 7px; color: #91a6c2; font-size: 11px; font-weight: 400; }
 .detail-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-@media (max-width: 1050px) { .latest-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 20px; } .latest-metrics > div:nth-child(4) { padding-left: 0; } .latest-metrics > div:nth-child(3) { border-right: 0; } }
-@media (max-width: 760px) { .detail-charts { grid-template-columns: minmax(0, 1fr); } .health-detail-view .filters label { flex: 1 1 180px; flex-direction: column; align-items: stretch; } .health-detail-view .filters .state { flex-basis: 100%; margin-left: 0; } .latest-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .latest-metrics > div:nth-child(2n) { border-right: 0; padding-left: 18px; } .latest-metrics > div:nth-child(2n + 1) { border-right: 1px solid #2b4362; padding-left: 0; } }
+@media (max-width: 1050px) { .latest-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 20px; } .latest-metrics > div:nth-child(4) { padding-left: 0; } .latest-metrics > div:nth-child(3), .latest-metrics > div:nth-child(5) { border-right: 0; } }
+@media (max-width: 760px) { .detail-charts { grid-template-columns: minmax(0, 1fr); } .health-detail-view .filters label { flex: 1 1 180px; flex-direction: column; align-items: stretch; } .health-detail-view .filters .state { flex-basis: 100%; margin-left: 0; } .latest-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .latest-metrics > div:nth-child(2n) { border-right: 0; padding-left: 18px; } .latest-metrics > div:nth-child(2n + 1) { border-right: 1px solid #2b4362; padding-left: 0; } .latest-metrics > div:last-child { border-right: 0; } }
 </style>

@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import { formatDate } from '../services/healthApi.js'
+import { healthMetricValue } from '../services/presentation.js'
 
 const props = defineProps({
   rows: { type: Array, default: () => [] },
@@ -22,14 +23,9 @@ const aliases = computed(() => {
     heart_rate: ['heart_rate'],
     blood_oxygen: ['blood_oxygen', 'spo2'],
     steps: ['steps', 'step_count'],
-    calories: ['calories'],
   }
   return map[props.metric] || [props.metric]
 })
-
-function field(row) {
-  return aliases.value.map((key) => row?.[key]).find((value) => value !== undefined && value !== null && value !== '')
-}
 
 function timestamp(row) {
   return row?.collected_at || row?.device_time || row?.received_at || row?.measured_at || null
@@ -38,8 +34,11 @@ function timestamp(row) {
 function render() {
   if (!chart || !chartEl.value) return
   const points = props.rows
-    .map((row) => ({ row, time: timestamp(row), value: Number(field(row)) }))
-    .filter((point) => point.time && Number.isFinite(point.value))
+    .map((row) => {
+      const rawValue = healthMetricValue(row, props.metric, aliases.value)
+      return { time: timestamp(row), value: rawValue === null ? null : Number(rawValue) }
+    })
+    .filter((point) => point.time && point.value !== null && Number.isFinite(point.value))
     .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
 
   chart.setOption({

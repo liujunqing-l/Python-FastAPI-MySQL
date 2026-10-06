@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { Check, RefreshCw, Search } from 'lucide-vue-next'
 import { api, dayRange, formatDate, items, today, total } from '../services/healthApi.js'
-import { displayValue, eventViewState } from '../services/presentation.js'
+import { alarmTypeLabel, displayValue, eventViewState } from '../services/presentation.js'
 
 const props = defineProps({
   devices: { type: Array, default: () => [] },
@@ -39,7 +39,8 @@ function deviceLabel(imei) {
 
 function alarmLabel(row) {
   const codes = Array.isArray(row?.alarm_codes) ? row.alarm_codes.filter(Boolean) : []
-  if (codes.length) return codes.join('、')
+  if (codes.length) return codes.map((code) => alarmTypeLabel(code)).join('、')
+  if (row?.alarm_type !== null && row?.alarm_type !== undefined && row?.alarm_type !== '') return alarmTypeLabel(row.alarm_type)
   if (row?.alarm_mask !== null && row?.alarm_mask !== undefined) return `位掩码 ${row.alarm_mask}`
   if (row?.sensor_type !== null && row?.sensor_type !== undefined) return `传感器异常（类型 ${row.sensor_type}）`
   return `协议消息 0x${Number(row?.message_id || 0).toString(16).padStart(2, '0').toUpperCase()}`

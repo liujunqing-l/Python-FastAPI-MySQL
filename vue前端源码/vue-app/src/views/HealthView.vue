@@ -27,7 +27,7 @@ const exportOpen = ref(false)
 const exportStart = ref(today())
 const exportEnd = ref(today())
 const exportPeople = ref([])
-const exportMetrics = ref(['body_temperature', 'wrist_temperature', 'heart_rate', 'blood_oxygen', 'systolic', 'diastolic', 'steps', 'calories'])
+const exportMetrics = ref(['body_temperature', 'wrist_temperature', 'heart_rate', 'blood_oxygen', 'systolic', 'diastolic', 'steps'])
 const exporting = ref(false)
 const exportError = ref('')
 const exportProgress = ref('')
@@ -42,7 +42,6 @@ const metrics = [
   { key: 'systolic', title: '收缩压', unit: 'mmHg', aliases: ['systolic', 'systolic_pressure'] },
   { key: 'diastolic', title: '舒张压', unit: 'mmHg', aliases: ['diastolic', 'diastolic_pressure'] },
   { key: 'steps', title: '步数', unit: '步', color: '#8b9cff', aliases: ['steps', 'step_count'] },
-  { key: 'calories', title: '卡路里', unit: 'kcal', color: '#ff9f43', aliases: ['calories'] },
 ]
 const chartMetrics = metrics.filter((metric) => !['systolic', 'diastolic'].includes(metric.key))
 const filteredDevices = computed(() => devices.value.filter((device) => !selectedAccount.value || accountId(device) === selectedAccount.value))
@@ -217,8 +216,8 @@ onBeforeUnmount(() => { loadVersion += 1; window.removeEventListener('keydown', 
     <div class="table-wrap">
       <table class="health-table"><thead><tr><th>#</th><th>归属账号</th><th>姓名</th><th>设备 IMEI</th><th>采集时间</th><th v-for="metric in metrics" :key="metric.key">{{ metric.title }}<small>{{ metric.unit }}</small></th><th>更多</th></tr></thead>
         <tbody>
-          <tr v-if="loading || deviceLoading"><td colspan="14" class="empty">正在加载健康数据...</td></tr>
-          <tr v-else-if="!rows.length"><td colspan="14" class="empty">{{ selectedImei ? '所选日期范围内暂无健康数据' : '请选择人员或设备后查询' }}</td></tr>
+          <tr v-if="loading || deviceLoading"><td colspan="13" class="empty">正在加载健康数据...</td></tr>
+          <tr v-else-if="!rows.length"><td colspan="13" class="empty">{{ selectedImei ? '所选日期范围内暂无健康数据' : '请选择人员或设备后查询' }}</td></tr>
           <template v-else>
             <tr v-for="(row, index) in displayedRows" :key="`${row.id || measuredAt(row)}-${index}`">
               <td>{{ (page - 1) * pageSize + index + 1 }}</td><td>{{ show(field(row, ['account_name', 'account']) ?? field(currentDevice, ['account_name', 'account'])) }}</td><td>{{ show(field(row, ['person_name', 'name']) || personName(currentDevice)) }}</td><td>{{ row.imei || resultRange?.imei }}</td><td>{{ formatDate(measuredAt(row)) }}</td><td v-for="metric in metrics" :key="metric.key">{{ show(field(row, metric.aliases)) }}</td><td><button class="link-button" type="button" @click="openDetail(row)">详情</button></td>

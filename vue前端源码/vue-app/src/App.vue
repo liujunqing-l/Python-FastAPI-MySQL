@@ -45,8 +45,7 @@ const navGroups = computed(() => [
       ...(canOperate.value ? [{ label: '设备设置', key: 'device-settings' }] : []),
       { label: '设备信息', key: 'device-info' },
       ...(isAdmin.value ? [
-        { label: '角色设置', key: 'roles' },
-        { label: '批量修改', key: 'batch-modify' },
+         { label: '角色设置', key: 'roles' },
       ] : []),
     ],
   },

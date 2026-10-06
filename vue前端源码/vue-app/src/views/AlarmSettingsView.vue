@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { Plus, RefreshCw, Trash2 } from 'lucide-vue-next'
 import { api, items } from '../services/healthApi.js'
+import { alarmTypeLabel } from '../services/presentation.js'
 
 const rules = ref([])
 const loading = ref(false)
@@ -41,7 +42,7 @@ onMounted(load)
 <template>
   <section class="admin-view"><div class="page-heading"><h2>报警设置</h2><span class="state">规则保存后用于后端报警数据解释</span><button type="button" @click="load" :disabled="loading"><RefreshCw :size="16" />刷新</button></div><p v-if="notice" class="notice" role="status">{{ notice }}</p><p v-if="error" class="error" role="alert">{{ error }}</p>
     <form class="rule-form" @submit.prevent="createRule"><input v-model.trim="form.name" placeholder="规则名称"><select v-model="form.alarm_type"><option value="heart_rate">心率</option><option value="blood_oxygen">血氧</option><option value="body_temperature">体温</option><option value="fall">跌倒</option></select><input v-model="form.threshold" type="number" step="any" placeholder="阈值"><select v-model="form.direction"><option value="gte">大于等于</option><option value="lte">小于等于</option></select><label><input v-model="form.enabled" type="checkbox">启用</label><button class="primary" type="submit" :disabled="saving"><Plus :size="16" />新增规则</button></form>
-    <div class="table-wrap"><table class="admin-table"><thead><tr><th>名称</th><th>类型</th><th>方向</th><th>阈值</th><th>启用</th><th>操作</th></tr></thead><tbody><tr v-if="loading"><td colspan="6" class="empty">正在读取规则...</td></tr><tr v-else-if="!rules.length"><td colspan="6" class="empty">暂无报警规则</td></tr><tr v-for="rule in rules" v-else :key="rule.id"><td>{{ rule.name }}</td><td>{{ rule.alarm_type }}</td><td>{{ rule.direction === 'lte' ? '小于等于' : '大于等于' }}</td><td>{{ rule.threshold ?? '--' }}</td><td><input v-model="rule.enabled" type="checkbox" @change="toggleRule(rule)"></td><td><button type="button" @click="removeRule(rule)" :disabled="saving"><Trash2 :size="15" />删除</button></td></tr></tbody></table></div>
+    <div class="table-wrap"><table class="admin-table"><thead><tr><th>名称</th><th>类型</th><th>方向</th><th>阈值</th><th>启用</th><th>操作</th></tr></thead><tbody><tr v-if="loading"><td colspan="6" class="empty">正在读取规则...</td></tr><tr v-else-if="!rules.length"><td colspan="6" class="empty">暂无报警规则</td></tr><tr v-for="rule in rules" v-else :key="rule.id"><td>{{ rule.name }}</td><td>{{ alarmTypeLabel(rule.alarm_type) }}</td><td>{{ rule.direction === 'lte' ? '小于等于' : '大于等于' }}</td><td>{{ rule.threshold ?? '--' }}</td><td><input v-model="rule.enabled" type="checkbox" @change="toggleRule(rule)"></td><td><button type="button" @click="removeRule(rule)" :disabled="saving"><Trash2 :size="15" />删除</button></td></tr></tbody></table></div>
   </section>
 </template>
 
